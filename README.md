@@ -80,6 +80,8 @@ Talk to them like contacts. Watch them work. Approve what matters.
 
 > ⚠️ **No affiliation with any cryptocurrency.** OpenMausBot has no token. Any coin using the OpenMausBot, Maus, or SupaMaus name is not created, endorsed, or affiliated with this project or its maintainer. I have received no tokens, payment, or allocation from anyone, and I will not be endorsing any token.
 
+> **DGX Spark.** This fork is for the NVIDIA DGX Spark (aarch64). It builds a local arm64 `.deb` and AppImage on the machine itself. Upstream release builds remain macOS, Windows x64, and Ubuntu 24.04 x64. On the Spark, local computer control is absent: the published CUA driver is linux/x64 only, and GNOME Wayland keeps that control disabled.
+
 ## Why
 
 One assistant in one box is the wrong shape for agents. OpenMausBot is an independent, open-source project inspired by **Grok Bot** —
@@ -345,6 +347,7 @@ See [Run OpenMausBot from scripts and CI](docs/headless-cli.md).
 | **macOS** (Intel) | [OpenMausBot-intel.dmg](https://github.com/milind-soni/OpenMausBot/releases/latest/download/OpenMausBot-intel.dmg) | Same app, built for Intel Macs. Signed & notarized. |
 | **Windows** (x64) | [OpenMausBot-setup.exe](https://github.com/milind-soni/OpenMausBot/releases/latest/download/OpenMausBot-setup.exe) | Run it — one-click, per-user, no admin rights. The installer isn't code-signed yet, so SmartScreen shows "unknown publisher": **More info → Run anyway**. |
 | **Ubuntu 24.04** (x64) | [OpenMausBot-amd64.deb](https://github.com/milind-soni/OpenMausBot/releases/latest/download/OpenMausBot-amd64.deb) · [OpenMausBot.AppImage](https://github.com/milind-soni/OpenMausBot/releases/latest/download/OpenMausBot.AppImage) | Install the `.deb` with APT (recommended), or make the AppImage executable and run it. Beta; GNOME is the supported desktop. |
+| **DGX Spark** (aarch64) | `release/OpenMausBot-<version>-arm64.deb` and `release/OpenMausBot-<version>-arm64.AppImage`, built on the Spark | `pnpm package:linux:arm64`, then `sudo dpkg -i release/OpenMausBot-*-arm64.deb`. Open **OpenMausBot** from the menu, or run `/opt/OpenMausBot/openmausbot`. The `.deb` sets the Chromium sandbox; the AppImage does not. |
 
 See the [Ubuntu Desktop guide](docs/linux-desktop.md) for installation, capabilities, and troubleshooting.
 Any desktop build can also open the bots of another Windows, macOS, or Ubuntu computer over Tailscale; see [open one computer's bots from another computer](docs/desktop-companion.md).
@@ -370,7 +373,8 @@ Package the desktop application:
 ```sh
 pnpm package:mac      # macOS: DMG + ZIP; requires Swift/Xcode tools
 pnpm package:win      # Windows: installer + ZIP
-pnpm package:linux    # Ubuntu x64: .deb + AppImage + verified CUA runtime
+pnpm package:linux         # Ubuntu x64: .deb + AppImage + verified CUA runtime
+pnpm package:linux:arm64   # DGX Spark (aarch64): .deb + AppImage, no CUA runtime
 ```
 
 ### Desktop capability status
@@ -421,7 +425,8 @@ pnpm test          # unit, driver, API, and desktop capability tests
 pnpm build         # typecheck + production build
 pnpm check:electron # syntax-check Electron main/preload files
 pnpm package:win   # Windows installer + zip → release/
-pnpm package:linux # Ubuntu x64 .deb + AppImage → release/
+pnpm package:linux         # Ubuntu x64 .deb + AppImage → release/
+pnpm package:linux:arm64   # DGX Spark arm64 .deb + AppImage → release/
 ```
 
 ### Triggers: schedules and webhooks
@@ -462,7 +467,7 @@ dedicated receiver through a hosted relay or a tool such as Tailscale Funnel.
 
 Early but real — the loop works end to end: message → agent → streamed reply → tools → approvals →
 computer use. macOS, Windows, and Ubuntu 24.04 x64 have released builds; Ubuntu remains a beta with the
-capability limits above. Rough edges to expect: hosted/mobile connectivity is still being built, and webhook
+capability limits above. This fork also packages the desktop app for the NVIDIA DGX Spark. Rough edges to expect: hosted/mobile connectivity is still being built, and webhook
 triggers currently use the local receiver rather than an always-on hosted relay.
 Hosted voice needs an ElevenLabs, Fish Audio, or xAI key; built-in Mac and local Chatterbox voices need no cloud key. Take-turns calls and the composer mic listen on-device on macOS and through Fish Audio speech-to-text on Windows and Linux (the same Fish Audio key as voices). See [`docs/voice-mode.md`](docs/voice-mode.md) for the design and the known gaps.
 

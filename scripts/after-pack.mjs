@@ -29,7 +29,7 @@ async function requireRegularFile(file, mode) {
   if (mode !== undefined) await chmod(file, mode);
 }
 
-async function validateCloudflared(resources, platform, required) {
+async function validateCloudflared(resources, platform, arch, required) {
   const root = path.join(resources, "cloudflared");
   try {
     await lstat(root);
@@ -51,7 +51,7 @@ async function validateCloudflared(resources, platform, required) {
   const target = executableTarget(await readFile(executable));
   const allowed = {
     darwin: new Set(["darwin-arm64", "darwin-x64"]),
-    linux: new Set(["linux-x64"]),
+    linux: new Set([`linux-${arch === "arm64" ? "arm64" : "x64"}`]),
     win32: new Set(["win32-x64"]),
   }[platform];
   if (!allowed?.has(target)) {
@@ -123,13 +123,13 @@ export default async function afterPack(context) {
       ? path.join(context.appOutDir, "OpenMausBot.app", "Contents", "Resources")
       : path.join(context.appOutDir, "resources")
   );
-  await validateCloudflared(resources, context.electronPlatformName, Boolean(context.packager));
+  const arch = { 1: "x64", 3: "arm64" }[context.arch];
+  await validateCloudflared(resources, context.electronPlatformName, arch, Boolean(context.packager));
   const browserRoot = path.join(resources, "browser-engine");
   const hasBrowser = await lstat(browserRoot).then(() => true, (error) => {
     if (error?.code === "ENOENT") return false;
     throw error;
   });
-  const arch = { 1: "x64", 3: "arm64" }[context.arch];
   // electron-builder warns and skips missing extraResources. A real package
   // must fail here, before signing, rather than silently ship without Chrome.
   if (hasBrowser || context.packager) {
@@ -139,7 +139,7 @@ export default async function afterPack(context) {
   await validateDuckdb(resources, context.electronPlatformName, arch, Boolean(context.packager));
   if (context.electronPlatformName === "darwin") await thinMacPlatformTools(resources, arch);
 
-  if (context.electronPlatformName !== "linux") return;
+  if (context.electronPlatformName !== "linux" || arch === "arm64") return;
 
   const cuaRoot = path.join(resources, "cua-linux-x64");
   const licenses = path.join(cuaRoot, "licenses");

@@ -102,7 +102,21 @@ secure_browser_tree() {
   find "$BROWSER_ROOT" -type d -exec chmod 0755 -- {} +
   find "$BROWSER_ROOT" -type f -exec chmod u-s,g-s,go-w,a+r -- {} +
   repair_executable "$BROWSER_ROOT/agent-browser"
-  repair_executable "$BROWSER_ROOT/chrome/chrome-headless-shell-linux64/chrome-headless-shell"
+  # linux64 is Chrome for Testing's x64 directory name. arm64 uses linux-arm64.
+  found=0
+  for candidate in \
+    "$BROWSER_ROOT/chrome/chrome-headless-shell-linux64/chrome-headless-shell" \
+    "$BROWSER_ROOT/chrome/chrome-headless-shell-linux-arm64/chrome-headless-shell"
+  do
+    if [ -f "$candidate" ] && [ ! -L "$candidate" ]; then
+      repair_executable "$candidate"
+      found=$((found + 1))
+    fi
+  done
+  if [ "$found" -ne 1 ]; then
+    echo "OpenMausBot package executable is missing or unsafe: $BROWSER_ROOT/chrome" >&2
+    exit 1
+  fi
 }
 
 in_container() {
@@ -168,11 +182,35 @@ install_browser_apparmor_profile() {
     echo "OpenMausBot AppArmor profile target is unsafe: $target" >&2
     exit 1
   fi
-  if [ "$TEST_MODE" -eq 0 ]; then
-    install -o root -g root -m 0644 -- "$profile" "$target"
-  else
-    install -m 0644 -- "$profile" "$target"
+  # One profile name. Chrome for Testing's arm64 directory is linux-arm64,
+  # so the installed attachment is that exact shell and nothing else.
+  policy_source=$profile
+  arm64_chrome=$BROWSER_ROOT/chrome/chrome-headless-shell-linux-arm64/chrome-headless-shell
+  x64_attachment=/opt/OpenMausBot/resources/browser-engine/chrome/chrome-headless-shell-linux64/chrome-headless-shell
+  arm64_attachment=/opt/OpenMausBot/resources/browser-engine/chrome/chrome-headless-shell-linux-arm64/chrome-headless-shell
+  if [ -f "$arm64_chrome" ] && [ ! -L "$arm64_chrome" ]; then
+    if [ "$arm64_chrome" != "$arm64_attachment" ]; then
+      echo "OpenMausBot browser AppArmor attachment is unsafe: $arm64_chrome" >&2
+      exit 1
+    fi
+    if ! grep -Fq -- "$x64_attachment" "$profile"; then
+      echo "OpenMausBot browser AppArmor profile is missing or unsafe: $profile" >&2
+      exit 1
+    fi
+    policy_source=$(mktemp)
+    sed "s|$x64_attachment|$arm64_attachment|g" -- "$profile" > "$policy_source"
+    if ! grep -Fq -- "$arm64_attachment" "$policy_source" || grep -Fq -- "$x64_attachment" "$policy_source"; then
+      rm -f -- "$policy_source"
+      echo "OpenMausBot browser AppArmor profile is missing or unsafe: $profile" >&2
+      exit 1
+    fi
   fi
+  if [ "$TEST_MODE" -eq 0 ]; then
+    install -o root -g root -m 0644 -- "$policy_source" "$target"
+  else
+    install -m 0644 -- "$policy_source" "$target"
+  fi
+  if [ "$policy_source" != "$profile" ]; then rm -f -- "$policy_source"; fi
   # Image builders stage policy for the target's next boot, not the host kernel.
   if [ "$TEST_MODE" -eq 0 ] && [ -x /usr/bin/ischroot ] && /usr/bin/ischroot; then return; fi
   # Installed AppArmor tools do not mean the kernel module is enabled. Keep
@@ -201,9 +239,25 @@ install_browser_apparmor_profile() {
 CUA_ROOT=$APP_ROOT/resources/cua-linux-x64
 repair_directory "$APP_ROOT"
 repair_directory "$APP_ROOT/resources"
-repair_directory "$CUA_ROOT"
-repair_executable "$CUA_ROOT/cua-driver"
-repair_executable "$CUA_ROOT/cua-cursor-theme"
+if [ -L "$CUA_ROOT" ]; then
+  echo "OpenMausBot package directory is missing or unsafe: $CUA_ROOT" >&2
+  exit 1
+fi
+if [ -d "$CUA_ROOT" ]; then
+  repair_directory "$CUA_ROOT"
+  repair_executable "$CUA_ROOT/cua-driver"
+  repair_executable "$CUA_ROOT/cua-cursor-theme"
+else
+  # 183 is ELF EM_AARCH64. The published CUA driver is linux/x64 only.
+  machine=""
+  if [ -f "$APP_ROOT/openmausbot" ] && [ ! -L "$APP_ROOT/openmausbot" ]; then
+    machine=$(od -An -t u2 -j 18 -N 2 -- "$APP_ROOT/openmausbot" | tr -d ' ')
+  fi
+  if [ "$machine" != 183 ]; then
+    echo "OpenMausBot package directory is missing or unsafe: $CUA_ROOT" >&2
+    exit 1
+  fi
+fi
 repair_chromium_sandbox "$APP_ROOT/chrome-sandbox"
 BROWSER_ROOT=$APP_ROOT/resources/browser-engine
 repair_directory "$BROWSER_ROOT"

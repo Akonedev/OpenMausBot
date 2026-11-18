@@ -21,7 +21,8 @@ of Linux desktop on your own server instead of this machine, see [byo-vps.md](by
 The local preview does **not** give the bot control of this computer by itself. On Xorg, local control requires both
 the global **Enable local control** choice and assigning a bot to **This computer**; every action still enters the
 approval flow. On Wayland, local control is disabled and legacy opt-ins are cleared automatically. Automatic Wayland
-helper installation, native on-device dictation, and ARM64 remain unavailable and fail closed; follow their
+helper installation and native on-device dictation remain unavailable and fail closed. This fork packages
+the desktop app for the NVIDIA DGX Spark; local computer control stays unavailable there. Follow their
 progress in [issue #29](https://github.com/milind-soni/OpenMausBot/issues/29) and the safety hold in
 [issue #345](https://github.com/milind-soni/OpenMausBot/issues/345). Bundled
 CUA supply-chain work is tracked in [issue #113](https://github.com/milind-soni/OpenMausBot/issues/113). Xorg is tracked in
@@ -39,13 +40,33 @@ Choose one Ubuntu 24.04 x86_64 package from the latest release:
 Versioned packages and previous releases remain available on the
 [releases page](https://github.com/milind-soni/OpenMausBot/releases).
 
+## NVIDIA DGX Spark
+
+This fork builds the desktop app on the NVIDIA DGX Spark (aarch64). Run the packager on the Spark:
+
+```sh
+pnpm package:linux:arm64
+sudo dpkg -i release/OpenMausBot-*-arm64.deb
+```
+
+The installer writes `/opt/OpenMausBot`, a menu entry named OpenMausBot, and the Chromium sandbox helper
+as root mode 4755. Start it from the menu or with `/opt/OpenMausBot/openmausbot`. Close the window to stop
+it. The arm64 AppImage is written next to the `.deb`. It does not install that sandbox helper; use the
+`.deb` on Ubuntu hosts that restrict unprivileged user namespaces. Do not add `--no-sandbox`.
+
+The published CUA driver is linux/x64 only, so this package has no local computer-control runtime. GNOME
+Wayland keeps that control disabled. Chat, preview, Cloud, and Local VM still run. The arm64 browser
+AppArmor profile is attached to `chrome-headless-shell-linux-arm64` inside `/opt/OpenMausBot`.
+
 ## Build packages
 
 Requirements for building from source:
 
-- Ubuntu 24.04 LTS x86_64
+- Ubuntu 24.04 LTS x86_64 for `pnpm package:linux`
 - Node.js 24 or newer
 - pnpm 10.33.0 (Corepack can install the version declared by the project)
+
+The DGX Spark uses `pnpm package:linux:arm64` on the machine itself. See [NVIDIA DGX Spark](#nvidia-dgx-spark).
 
 ```sh
 git clone https://github.com/milind-soni/OpenMausBot.git
